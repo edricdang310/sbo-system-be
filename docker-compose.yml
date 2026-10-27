@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sbo-postgres
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - sbo-postgres-data:/var/lib/postgresql/data
+    ports:
+      # Bound to localhost only; the API reaches it through the compose network
+      - '127.0.0.1:${DATABASE_PORT:-5433}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USERNAME} -d ${DATABASE_NAME}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: .
+    container_name: sbo-api
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      HTTP_PORT: 3333
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${HTTP_PORT:-3333}:3333'
+    volumes:
+      - sbo-uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  sbo-postgres-data:
+  sbo-uploads:
