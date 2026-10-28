@@ -142,3 +142,11 @@ export class CreateCustomerDto {
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}
+
+export class ImportCustomersDto {
+  @ApiProperty({ type: [CreateCustomerDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCustomerDto)
+  items: CreateCustomerDto[];
+}

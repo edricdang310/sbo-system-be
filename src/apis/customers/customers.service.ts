@@ -8,7 +8,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Contract } from '../contracts/entities/contract.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
 import { softDeleteContracts } from '../contracts/contract-cascade';
-import { ROLE } from 'src/common/enum';
+import { ACTIVE_STATUS, ROLE } from 'src/common/enum';
 import { Customer } from './entities/customer.entity';
 import { Contact } from './entities/contact.entity';
 import { CustomerRepository } from './repositories/customer.repository';
@@ -44,15 +44,68 @@ export class CustomersService extends BaseServiceAbstract<Customer> {
       const { contacts = [], ...raw } = dto;
       const data = this.normalize(raw);
       const code = await this.sequence.customerCode();
-      const created = await this.customers.create({
-        ...data,
-        code,
-        status: data.status,
-        address: data.address ?? '',
-        contacts: contacts.map((c) => this.toContact(c, !!data.anonymous)) as Contact[],
-      });
-      await this.audit.log(actor, 'Thêm khách hàng', `${created.code} · ${created.name}`);
-      return this.get(created.id);
+      const queryRunner = await this.customers.startTransaction();
+      try {
+        const customer = queryRunner.manager.create(Customer, {
+          ...data,
+          code,
+          status: data.status,
+          address: data.address ?? '',
+        });
+        const saved = await queryRunner.manager.save(Customer, customer);
+        if (contacts.length > 0) {
+          const contactEntities = contacts.map((c) =>
+            queryRunner.manager.create(Contact, {
+              ...this.toContact(c, !!data.anonymous),
+              customerId: saved.id,
+            }),
+          );
+          await queryRunner.manager.save(Contact, contactEntities);
+        }
+        await this.customers.commitTransaction(queryRunner);
+        await this.audit.log(actor, 'Thêm khách hàng', `${saved.code} · ${saved.name}`);
+        return this.get(saved.id);
+      } catch (err) {
+        await this.customers.rollbackTransaction(queryRunner);
+        throw err;
+      }
+    });
+  }
+
+  async importCustomers(dtos: CreateCustomerDto[], actor: AuthUser) {
+    return this.guard(async () => {
+      const results: Customer[] = [];
+      const queryRunner = await this.customers.startTransaction();
+      try {
+        for (const dto of dtos) {
+          const { contacts = [], ...raw } = dto;
+          const data = this.normalize(raw);
+          const code = await this.sequence.customerCode();
+          const customer = queryRunner.manager.create(Customer, {
+            ...data,
+            code,
+            status: data.status || ACTIVE_STATUS.ACTIVE,
+            address: data.address ?? '',
+          });
+          const saved = await queryRunner.manager.save(Customer, customer);
+          if (contacts.length > 0) {
+            const contactEntities = contacts.map((c) =>
+              queryRunner.manager.create(Contact, {
+                ...this.toContact(c, !!data.anonymous),
+                customerId: saved.id,
+              }),
+            );
+            await queryRunner.manager.save(Contact, contactEntities);
+          }
+          results.push(saved);
+        }
+        await this.customers.commitTransaction(queryRunner);
+      } catch (error) {
+        await this.customers.rollbackTransaction(queryRunner);
+        throw error;
+      }
+      await this.audit.log(actor, 'Import khách hàng', `Import thành công ${results.length} khách hàng`);
+      return results;
     });
   }
 

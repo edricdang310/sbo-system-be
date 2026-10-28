@@ -47,6 +47,41 @@ export class InvoiceItemInputDto {
   @IsInt()
   @Min(1)
   months?: number;
+
+  @ApiPropertyOptional({ description: 'Custom amount for postpaid/metered services' })
+  @IsOptional()
+  @IsNumber()
+  amount?: number;
+
+  @ApiPropertyOptional({ description: 'Usage quantity (e.g. GB)' })
+  @IsOptional()
+  @IsNumber()
+  quantity?: number;
+
+  @ApiPropertyOptional({ description: 'Unit price (e.g. đ/GB)' })
+  @IsOptional()
+  @IsNumber()
+  unitPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Custom line description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
+export class InvoiceLineDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  description: string;
+
+  @ApiProperty()
+  @IsNumber()
+  quantity: number;
+
+  @ApiProperty()
+  @IsNumber()
+  unitPrice: number;
 }
 
 export class CreateInvoiceDto {
@@ -85,6 +120,13 @@ export class CreateInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemInputDto)
   items: InvoiceItemInputDto[];
+
+  @ApiPropertyOptional({ type: [InvoiceLineDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceLineDto)
+  lines?: InvoiceLineDto[];
 }
 
 export class AttachmentDto {

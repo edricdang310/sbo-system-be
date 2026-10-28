@@ -46,6 +46,6 @@ export class Customer extends BaseEntity {
   @Column({ type: 'varchar', length: 20, default: ACTIVE_STATUS.ACTIVE })
   status: ACTIVE_STATUS;
 
-  @OneToMany(() => Contact, (contact) => contact.customer)
+  @OneToMany(() => Contact, (contact) => contact.customer, { cascade: true })
   contacts: Contact[];
 }

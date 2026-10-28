@@ -31,6 +31,13 @@ export class CustomersController {
     return this.service.createCustomer(body, user);
   }
 
+  @Post('import')
+  @Roles(PERMISSION.CUSTOMER_MANAGE)
+  importCustomers(@Body() body: any, @CurrentUser() user: AuthUser) {
+    const items = Array.isArray(body) ? body : (body?.items ?? []);
+    return this.service.importCustomers(items, user);
+  }
+
   @Put(':id')
   @Roles(PERMISSION.CUSTOMER_MANAGE)
   update(@Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateCustomerDto, @CurrentUser() user: AuthUser) {

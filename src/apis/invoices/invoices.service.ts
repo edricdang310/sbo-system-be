@@ -80,11 +80,16 @@ export class InvoicesService extends BaseServiceAbstract<Invoice> implements OnA
           if (!service) throw new BadRequestException('Dịch vụ không thuộc hợp đồng này');
           const item = await this.buildItem(m, contract, service, input, dto.periodFrom);
           items.push(item);
-          lines.push({
-            description: `${item.name}${item.ident ? ` (${item.ident})` : ''} · ${formatDateVi(item.from)} → ${formatDateVi(item.to)}`,
-            quantity: item.quantity * item.months,
-            unitPrice: item.unitPrice,
-          });
+          if (!dto.lines?.length) {
+            lines.push({
+              description: input.description ?? `${item.name}${item.ident ? ` (${item.ident})` : ''} · ${formatDateVi(item.from)} → ${formatDateVi(item.to)}`,
+              quantity: item.quantity * item.months,
+              unitPrice: item.unitPrice,
+            });
+          }
+        }
+        if (dto.lines?.length) {
+          lines.push(...dto.lines);
         }
 
         const invoice = await m.save(
@@ -117,7 +122,7 @@ export class InvoicesService extends BaseServiceAbstract<Invoice> implements OnA
     m: EntityManager,
     contract: Contract,
     service: ServiceItem,
-    input: { from?: string; cycles?: number; months?: number },
+    input: { from?: string; cycles?: number; months?: number; amount?: number; quantity?: number; unitPrice?: number },
     periodFrom?: string,
   ): Promise<Partial<InvoiceItem>> {
     if (service.status === SERVICE_STATUS.STOPPED && !service.stopDate) {
@@ -160,6 +165,10 @@ export class InvoicesService extends BaseServiceAbstract<Invoice> implements OnA
       throw new ConflictException(`Dịch vụ "${service.name}" đã có hóa đơn cho kỳ ${formatDateVi(from)} → ${formatDateVi(to)}`);
     }
 
+    const quantity = input.quantity !== undefined ? Number(input.quantity) : service.quantity;
+    const unitPrice = input.unitPrice !== undefined ? Number(input.unitPrice) : service.unitPrice;
+    const amount = input.amount !== undefined ? Number(input.amount) : unitPrice * quantity * months;
+
     return {
       serviceId: service.id,
       name: service.name,
@@ -167,9 +176,9 @@ export class InvoicesService extends BaseServiceAbstract<Invoice> implements OnA
       from,
       to,
       months,
-      quantity: service.quantity,
-      unitPrice: service.unitPrice,
-      amount: service.unitPrice * service.quantity * months,
+      quantity,
+      unitPrice,
+      amount,
       serviceType: service.type,
       config: { ...service.config },
       cycles,
