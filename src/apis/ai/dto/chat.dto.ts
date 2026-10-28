@@ -23,9 +23,21 @@ export class ChatDto {
   @Type(() => ChatMessageDto)
   messages: ChatMessageDto[];
 
-  /** `chat` adds business data to the prompt (filtered by the caller's permissions); `quotation` only helps writing */
-  @ApiPropertyOptional({ enum: ['chat', 'quotation'], default: 'chat' })
+  /** `chat` adds business data to the prompt; `quotation` helps writing; `test` is for diagnostics in settings */
+  @ApiPropertyOptional({ enum: ['chat', 'quotation', 'test'], default: 'chat' })
   @IsOptional()
-  @IsIn(['chat', 'quotation'])
-  mode?: 'chat' | 'quotation';
+  @IsIn(['chat', 'quotation', 'test'])
+  mode?: 'chat' | 'quotation' | 'test';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  apiKey?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  model?: string;
 }

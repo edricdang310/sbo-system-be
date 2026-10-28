@@ -65,26 +65,41 @@ export class AiService {
   async chat(dto: ChatDto, user: AuthUser): Promise<{ text: string }> {
     const mode = dto.mode ?? 'chat';
     const cfg = await this.settings.aiSecret();
-    if (mode === 'chat' && !cfg.enableChatAssistant) throw new ForbiddenException('Trợ lý AI chưa được bật');
-    if (mode === 'quotation' && !cfg.enableQuotationAssist) throw new ForbiddenException('Trợ lý soạn báo giá chưa được bật');
+    if (mode === 'chat' && !cfg.enableChatAssistant) {
+      throw new ForbiddenException('Trợ lý AI chưa được bật (Hãy bật "Trợ lý chatbot" trong Cấu hình AI)');
+    }
+    if (mode === 'quotation' && !cfg.enableQuotationAssist) {
+      throw new ForbiddenException('Trợ lý soạn báo giá chưa được bật (Hãy bật "Trợ lý soạn báo giá" trong Cấu hình AI)');
+    }
     if (mode === 'quotation' && !hasPermission(user.role, PERMISSION.QUOTATION_MANAGE)) {
       throw new ForbiddenException('Bạn không có quyền soạn báo giá');
     }
-    if (!cfg.geminiApiKey) throw new BadRequestException('Chưa cấu hình Gemini API key (Cài đặt hệ thống → AI)');
+    const keyToUse = dto.apiKey?.trim() || cfg.geminiApiKey;
+    if (!keyToUse) throw new BadRequestException('Chưa cấu hình Gemini API key (Cài đặt hệ thống → AI)');
     if (dto.messages[dto.messages.length - 1].role !== 'user') throw new BadRequestException('Tin nhắn cuối phải của người dùng');
 
     const context = mode === 'chat' ? await this.businessContext(user) : '';
-    const system = context ? `${SYSTEM}\n\nDỮ LIỆU HIỆN TẠI:\n${context}` : SYSTEM;
+    const extraPrompt = (cfg as any).systemPrompt ? `\n\nCHỈ DẪN BỔ SUNG:\n${(cfg as any).systemPrompt}` : '';
+    const system = (context ? `${SYSTEM}\n\nDỮ LIỆU HIỆN TẠI:\n${context}` : SYSTEM) + extraPrompt;
+
+    const rawModel = dto.model || cfg.model;
+    const modelStr = String(rawModel ?? '');
+    const modelToUse = !modelStr || modelStr === 'auto' ? 'gemini-2.0-flash' : modelStr;
+
+    const generationConfig: Record<string, any> = {};
+    if ((cfg as any).temperature !== undefined) generationConfig.temperature = (cfg as any).temperature;
+    if ((cfg as any).maxTokens !== undefined) generationConfig.maxOutputTokens = (cfg as any).maxTokens;
 
     let res: Response;
     try {
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`, {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelToUse)}:generateContent`, {
         method: 'POST',
         // Key travels in a header, never in the URL, so it cannot end up in access logs
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.geminiApiKey },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': keyToUse },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
           contents: dto.messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
+          ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
         }),
         signal: AbortSignal.timeout(30_000),
       });
@@ -97,5 +112,28 @@ export class AiService {
     const text = json?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('');
     if (!text) throw new BadGatewayException('Gemini không trả về nội dung');
     return { text };
+  }
+
+  async testConnection(customKey?: string): Promise<{ success: boolean; models: string[] }> {
+    const cfg = await this.settings.aiSecret();
+    const key = customKey || cfg.geminiApiKey;
+    if (!key) throw new BadRequestException('Chưa có API key để kiểm tra');
+
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        const json: any = await res.json().catch(() => ({}));
+        throw new Error(json?.error?.message || `Lỗi kết nối (${res.status})`);
+      }
+      const data: any = await res.json().catch(() => ({}));
+      const models = (data?.models ?? [])
+        .map((m: any) => m.name?.replace(/^models\//, ''))
+        .filter((name: string) => name && (name.includes('flash') || name.includes('pro')));
+      return { success: true, models: models.length > 0 ? models : ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'] };
+    } catch (err: any) {
+      throw new BadGatewayException(err.message || 'Không thể kết nối đến Gemini API');
+    }
   }
 }

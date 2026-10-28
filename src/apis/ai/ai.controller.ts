@@ -19,4 +19,11 @@ export class AiController {
   chat(@Body() body: ChatDto, @CurrentUser() user: AuthUser) {
     return this.service.chat(body, user);
   }
+
+  @Post('test-connection')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  testConnection(@Body() body: { apiKey?: string }) {
+    return this.service.testConnection(body?.apiKey);
+  }
 }

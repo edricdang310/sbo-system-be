@@ -104,4 +104,9 @@ export class AiSettingsDto {
   @ApiProperty() @IsString() @Matches(/^[\w.\-]+$/, { message: 'Tên model không hợp lệ' }) @MaxLength(100) model: string;
   @ApiProperty() @IsBoolean() enableQuotationAssist: boolean;
   @ApiProperty() @IsBoolean() enableChatAssistant: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(50) provider?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(2) temperature?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(100) @Max(32000) maxTokens?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(4000) systemPrompt?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) lastCheckedAt?: string;
 }

@@ -64,10 +64,15 @@ const DEFAULTS = {
     template: DEFAULT_TELEGRAM_TEMPLATE,
   },
   [SETTING_KEYS.ai]: {
+    provider: 'gemini',
     geminiApiKey: '',
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.0-flash' as string,
     enableQuotationAssist: false,
     enableChatAssistant: false,
+    temperature: 0.7,
+    maxTokens: 2048,
+    systemPrompt: '',
+    lastCheckedAt: '',
   },
 } as const;
 
