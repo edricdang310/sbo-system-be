@@ -11,6 +11,7 @@ import {
   ExchangeRatesDto,
   InvoiceTemplateDto,
   PaymentMethodDto,
+  RolePermissionsDto,
   TelegramSettingsDto,
 } from './dto/settings.dto';
 
@@ -23,6 +24,26 @@ const READ_REFERENCE = [P.SETTINGS_MANAGE, P.INVOICE_VIEW, P.QUOTATION_VIEW];
 @ApiBearerAuth()
 export class SettingsController {
   constructor(private readonly service: SettingsService) {}
+
+  @Get('role-permissions')
+  @Roles(P.SETTINGS_MANAGE, P.USER_MANAGE)
+  rolePermissions() {
+    return this.service.rolePermissions();
+  }
+
+  /** System Admin only: enforced in the service on top of settings:manage */
+  @Put('role-permissions')
+  @Roles(P.SETTINGS_MANAGE)
+  saveRolePermissions(@Body() body: RolePermissionsDto, @CurrentUser() user: AuthUser) {
+    return this.service.saveRolePermissions(body, user);
+  }
+
+  @Post('role-permissions/reset')
+  @Roles(P.SETTINGS_MANAGE)
+  @HttpCode(200)
+  resetRolePermissions(@CurrentUser() user: AuthUser) {
+    return this.service.resetRolePermissions(user);
+  }
 
   @Get('company')
   @Roles(...READ_REFERENCE)

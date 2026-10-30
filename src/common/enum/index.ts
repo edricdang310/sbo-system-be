@@ -1,10 +1,22 @@
-/** Roles (see REQUIREMENTS §2) */
+/** Roles (see REQUIREMENTS §2). SYSTEM_ADMIN is the highest role: it is seeded, never assignable through the API. */
 export enum ROLE {
+  SYSTEM_ADMIN = 'system_admin',
   ADMIN = 'admin',
   TECH = 'tech',
   SALE = 'sale',
   ACCOUNTANT = 'accountant',
 }
+
+/** Higher rank manages lower rank only; equal rank can never manage each other */
+export const ROLE_RANK: Record<ROLE, number> = {
+  [ROLE.SYSTEM_ADMIN]: 100,
+  [ROLE.ADMIN]: 50,
+  [ROLE.TECH]: 10,
+  [ROLE.SALE]: 10,
+  [ROLE.ACCOUNTANT]: 10,
+};
+
+export const isAdminRole = (role: ROLE) => role === ROLE.ADMIN || role === ROLE.SYSTEM_ADMIN;
 
 /** Fine-grained permissions checked at every endpoint through @Roles() */
 export enum PERMISSION {
@@ -29,7 +41,8 @@ export enum PERMISSION {
 const P = PERMISSION;
 
 /** Default RBAC matrix, identical to sbo-fe/src/lib/rbac.ts */
-export const ROLE_PERMISSIONS: Record<ROLE, PERMISSION[]> = {
+export const DEFAULT_ROLE_PERMISSIONS: Record<ROLE, PERMISSION[]> = {
+  [ROLE.SYSTEM_ADMIN]: Object.values(PERMISSION),
   [ROLE.ADMIN]: Object.values(PERMISSION),
   [ROLE.TECH]: [P.CUSTOMER_VIEW, P.CONTRACT_VIEW, P.SERVICE_MANAGE, P.TICKET_VIEW, P.TICKET_HANDLE],
   [ROLE.SALE]: [
@@ -52,6 +65,22 @@ export const ROLE_PERMISSIONS: Record<ROLE, PERMISSION[]> = {
     P.QUOTATION_VIEW,
   ],
 };
+
+/** Roles whose permissions a System Admin may customise. System Admin itself is always full access. */
+export const EDITABLE_ROLES: ROLE[] = [ROLE.ADMIN, ROLE.TECH, ROLE.SALE, ROLE.ACCOUNTANT];
+
+/** Live matrix used by PermissionGuard / profile. Starts as the defaults, then System Admin overrides are applied in place. */
+export const ROLE_PERMISSIONS: Record<ROLE, PERMISSION[]> = Object.fromEntries(
+  Object.entries(DEFAULT_ROLE_PERMISSIONS).map(([r, p]) => [r, [...p]]),
+) as Record<ROLE, PERMISSION[]>;
+
+/** Replaces the permissions of editable roles (System Admin is untouched). Roles missing from `overrides` fall back to defaults. */
+export function applyRolePermissions(overrides: Partial<Record<ROLE, PERMISSION[]>> = {}) {
+  for (const role of EDITABLE_ROLES) {
+    ROLE_PERMISSIONS[role] = [...(overrides[role] ?? DEFAULT_ROLE_PERMISSIONS[role])];
+  }
+  ROLE_PERMISSIONS[ROLE.SYSTEM_ADMIN] = Object.values(PERMISSION);
+}
 
 export const hasPermission = (role: ROLE, permission: PERMISSION) => ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
 

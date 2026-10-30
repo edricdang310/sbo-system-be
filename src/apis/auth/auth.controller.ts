@@ -1,11 +1,11 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Public } from 'src/common/decorators/public.decorator';
 import { AuthUser } from 'src/common/interfaces/auth.interface';
 import { AuthService } from './auth.service';
-import { ChangePasswordDto, LoginDto } from './dto/login.dto';
+import { ChangePasswordDto, LoginDto, UpdateProfileDto } from './dto/login.dto';
 
 @Controller('auth')
 @ApiTags('auth')
@@ -25,6 +25,13 @@ export class AuthController {
   @ApiBearerAuth()
   me(@CurrentUser() user: AuthUser) {
     return this.service.profile(user);
+  }
+
+  /** Self-service: the signed-in user edits only their own display name (role/email/status are managed by a higher role) */
+  @Put('profile')
+  @ApiBearerAuth()
+  updateProfile(@CurrentUser() user: AuthUser, @Body() body: UpdateProfileDto) {
+    return this.service.updateProfile(user, body.name);
   }
 
   @Post('change-password')

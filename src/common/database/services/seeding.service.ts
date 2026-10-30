@@ -19,21 +19,38 @@ export class SeedingService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap() {
     await this.settings.ensureDefaults();
+    await this.settings.loadRolePermissions();
     await this.seedAdmin();
   }
 
   private async seedAdmin() {
-    if ((await this.users.countBy()) > 0) return;
-
     const email = this.config.get<string>('DEFAULT_ADMIN_EMAIL', 'admin@sbo.local').toLowerCase();
+
+    if ((await this.users.countBy()) > 0) {
+      await this.ensureSystemAdmin(email);
+      return;
+    }
+
     const password = this.config.get<string>('DEFAULT_ADMIN_PASSWORD', 'Admin@123');
     await this.users.create({
       name: this.config.get<string>('DEFAULT_ADMIN_NAME', 'Quản trị viên'),
       email,
-      role: ROLE.ADMIN,
+      role: ROLE.SYSTEM_ADMIN,
       active: true,
       passwordHash: await this.usersService.hash(password),
     });
-    this.logger.warn(`Created default admin ${email}. Change this password immediately after the first login.`);
+    this.logger.warn(`Created default system admin ${email}. Change this password immediately after the first login.`);
+  }
+
+  /** Upgrade path for databases created before the System Admin role existed */
+  private async ensureSystemAdmin(defaultEmail: string) {
+    const repo = this.users.getRepository();
+    if ((await repo.count({ where: { role: ROLE.SYSTEM_ADMIN } })) > 0) return;
+    const target =
+      (await repo.findOne({ where: { email: defaultEmail } })) ??
+      (await repo.findOne({ where: { role: ROLE.ADMIN }, order: { createdAt: 'ASC' } }));
+    if (!target) return;
+    await repo.update(target.id, { role: ROLE.SYSTEM_ADMIN });
+    this.logger.warn(`Promoted ${target.email} to System Admin (no System Admin existed).`);
   }
 }

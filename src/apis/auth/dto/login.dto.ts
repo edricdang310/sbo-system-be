@@ -15,6 +15,14 @@ export class LoginDto {
   password: string;
 }
 
+export class UpdateProfileDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty({ message: 'Họ tên không được để trống' })
+  @MaxLength(200)
+  name: string;
+}
+
 export class ChangePasswordDto {
   @ApiProperty()
   @IsString()

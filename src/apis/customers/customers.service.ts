@@ -8,7 +8,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Contract } from '../contracts/entities/contract.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
 import { softDeleteContracts } from '../contracts/contract-cascade';
-import { ACTIVE_STATUS, ROLE } from 'src/common/enum';
+import { ACTIVE_STATUS, isAdminRole } from 'src/common/enum';
 import { Customer } from './entities/customer.entity';
 import { Contact } from './entities/contact.entity';
 import { CustomerRepository } from './repositories/customer.repository';
@@ -159,7 +159,7 @@ export class CustomersService extends BaseServiceAbstract<Customer> {
         this.dataSource.getRepository(Invoice).count({ where: { customerId: id } }),
       ]);
       const hasHistory = contracts.length + invoices > 0;
-      if (hasHistory && actor.role !== ROLE.ADMIN) {
+      if (hasHistory && !isAdminRole(actor.role)) {
         throw new ConflictException('Khách hàng đã có hợp đồng/hóa đơn, không thể xóa. Hãy chuyển sang trạng thái "Ngừng hoạt động".');
       }
       await this.dataSource.transaction(async (m) => {

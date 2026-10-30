@@ -35,7 +35,10 @@ export function diffService(a: ServiceItem, b: ServiceItem): ServiceChangeDetail
   cmp('Ngày bắt đầu', a.startDate, b.startDate);
   cmp('Ngày hết hạn', a.endDate, b.endDate);
   cmp('Đã trả đến', a.paidUntil, b.paidUntil);
-  for (const k of new Set([...Object.keys(a.config ?? {}), ...Object.keys(b.config ?? {})])) cmp(k, a.config?.[k], b.config?.[k]);
+  for (const k of new Set([...Object.keys(a.config ?? {}), ...Object.keys(b.config ?? {})])) {
+    if (k.startsWith('_')) continue;
+    cmp(k, a.config?.[k], b.config?.[k]);
+  }
   return out;
 }
 

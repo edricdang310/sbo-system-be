@@ -38,6 +38,14 @@ export class AuthService {
     return { ...user, active: true, permissions: ROLE_PERMISSIONS[user.role] ?? [] };
   }
 
+  async updateProfile(actor: AuthUser, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) throw new BadRequestException('Họ tên không được để trống');
+    await this.users.updateById(actor.id, { name: trimmed });
+    await this.audit.log({ id: actor.id, name: trimmed }, 'Cập nhật hồ sơ cá nhân', actor.email);
+    return this.profile({ ...actor, name: trimmed });
+  }
+
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const user = await this.users.findByIdWithPassword(userId);
     if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {

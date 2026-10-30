@@ -46,7 +46,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
   /** Assignee must be an active technician or admin */
   private async resolveAssignee(assigneeId: string) {
     const user = await this.users.findOne({ where: { id: assigneeId } });
-    if (!user || !user.active || ![ROLE.TECH, ROLE.ADMIN].includes(user.role)) {
+    if (!user || !user.active || ![ROLE.TECH, ROLE.ADMIN, ROLE.SYSTEM_ADMIN].includes(user.role)) {
       throw new BadRequestException('Người xử lý phải là nhân viên Kỹ thuật hoặc Quản trị đang hoạt động');
     }
     return user;

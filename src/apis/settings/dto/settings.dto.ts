@@ -9,6 +9,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -22,6 +23,13 @@ import { CURRENCY, PAYMENT_METHOD_KIND } from 'src/common/enum';
 const IMAGE_REF = /^(|data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+|https?:\/\/\S+)$/;
 const imageMsg = { message: 'Ảnh phải là data URL ảnh hoặc liên kết http(s)' };
 const MAX_IMAGE = 3_000_000;
+
+/** `{ permissions: { tech: ['customer:view', ...], sale: [...] } }` - roles omitted keep their current permissions */
+export class RolePermissionsDto {
+  @ApiProperty({ description: 'role -> list of permission keys' })
+  @IsObject()
+  permissions: Record<string, string[]>;
+}
 
 export class CompanySettingsDto {
   @ApiProperty() @IsString() @MaxLength(300) companyName: string;

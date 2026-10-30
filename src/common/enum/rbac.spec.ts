@@ -1,8 +1,15 @@
-import { hasPermission, PERMISSION, ROLE, ROLE_PERMISSIONS } from './index';
+import { hasPermission, isAdminRole, PERMISSION, ROLE, ROLE_PERMISSIONS, ROLE_RANK } from './index';
 
 describe('RBAC matrix', () => {
-  it('admin has every permission', () => {
+  it('admin and system admin have every permission', () => {
     expect(ROLE_PERMISSIONS[ROLE.ADMIN]).toHaveLength(Object.values(PERMISSION).length);
+    expect(ROLE_PERMISSIONS[ROLE.SYSTEM_ADMIN]).toHaveLength(Object.values(PERMISSION).length);
+  });
+
+  it('system admin outranks admin, admin outranks staff, admins are not equal-rank with each other', () => {
+    expect(ROLE_RANK[ROLE.SYSTEM_ADMIN]).toBeGreaterThan(ROLE_RANK[ROLE.ADMIN]);
+    expect(ROLE_RANK[ROLE.ADMIN]).toBeGreaterThan(ROLE_RANK[ROLE.TECH]);
+    expect(isAdminRole(ROLE.SYSTEM_ADMIN) && isAdminRole(ROLE.ADMIN) && !isAdminRole(ROLE.SALE)).toBe(true);
   });
 
   it.each([

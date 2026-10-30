@@ -1,9 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CryptoService } from 'src/common/crypto/crypto.service';
 import { AuthUser } from 'src/common/interfaces/auth.interface';
-import { PAYMENT_METHOD_KIND } from 'src/common/enum';
+import {
+  applyRolePermissions,
+  DEFAULT_ROLE_PERMISSIONS,
+  EDITABLE_ROLES,
+  PAYMENT_METHOD_KIND,
+  PERMISSION,
+  ROLE,
+  ROLE_PERMISSIONS,
+} from 'src/common/enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AppSetting } from './entities/app-setting.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
@@ -14,6 +22,7 @@ import {
   ExchangeRatesDto,
   InvoiceTemplateDto,
   PaymentMethodDto,
+  RolePermissionsDto,
   TelegramSettingsDto,
 } from './dto/settings.dto';
 
@@ -23,6 +32,7 @@ export const SETTING_KEYS = {
   rates: 'exchange-rates',
   telegram: 'telegram',
   ai: 'ai',
+  rolePermissions: 'role-permissions',
 } as const;
 
 export const DEFAULT_TELEGRAM_TEMPLATE =
@@ -102,6 +112,55 @@ export class SettingsService {
     for (const [key, value] of Object.entries(DEFAULTS)) {
       if (!(await this.settings.exist({ where: { key } }))) await this.settings.save({ key, value: value as any });
     }
+  }
+
+  /* ---------- role permission matrix (System Admin only) ---------- */
+
+  /** Loads the saved overrides into the live matrix (called at boot and after every save) */
+  async loadRolePermissions() {
+    const row = await this.settings.findOne({ where: { key: SETTING_KEYS.rolePermissions } });
+    applyRolePermissions((row?.value ?? {}) as Partial<Record<ROLE, PERMISSION[]>>);
+  }
+
+  /** Effective matrix plus defaults so the UI can offer "restore defaults" and highlight customised cells */
+  rolePermissions() {
+    return {
+      matrix: ROLE_PERMISSIONS,
+      defaults: DEFAULT_ROLE_PERMISSIONS,
+      lockedRoles: [ROLE.SYSTEM_ADMIN],
+    };
+  }
+
+  private assertSystemAdmin(actor: AuthUser) {
+    if (actor.role !== ROLE.SYSTEM_ADMIN) {
+      throw new ForbiddenException('Chỉ System Admin mới được chỉnh sửa ma trận phân quyền');
+    }
+  }
+
+  async saveRolePermissions(dto: RolePermissionsDto, actor: AuthUser) {
+    this.assertSystemAdmin(actor);
+    const valid = new Set<string>(Object.values(PERMISSION));
+    const next: Partial<Record<ROLE, PERMISSION[]>> = {};
+    for (const [role, perms] of Object.entries(dto.permissions ?? {})) {
+      if (role === ROLE.SYSTEM_ADMIN) throw new BadRequestException('Không thể thay đổi quyền của System Admin');
+      if (!EDITABLE_ROLES.includes(role as ROLE)) throw new BadRequestException(`Vai trò không hợp lệ: ${role}`);
+      if (!Array.isArray(perms) || perms.some((p) => !valid.has(p))) {
+        throw new BadRequestException(`Danh sách quyền của ${role} không hợp lệ`);
+      }
+      next[role as ROLE] = [...new Set(perms)] as PERMISSION[];
+    }
+    await this.write(SETTING_KEYS.rolePermissions, next);
+    await this.loadRolePermissions();
+    await this.audit.log(actor, 'Cập nhật ma trận phân quyền', Object.keys(next).join(', '));
+    return this.rolePermissions();
+  }
+
+  async resetRolePermissions(actor: AuthUser) {
+    this.assertSystemAdmin(actor);
+    await this.write(SETTING_KEYS.rolePermissions, {});
+    await this.loadRolePermissions();
+    await this.audit.log(actor, 'Khôi phục ma trận phân quyền mặc định', '');
+    return this.rolePermissions();
   }
 
   /* ---------- company / invoice template / rates ---------- */
